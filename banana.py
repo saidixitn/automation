@@ -9,6 +9,7 @@ from gspread.exceptions import WorksheetNotFound
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pytz import timezone as pytz_timezone
 from gspread.utils import rowcol_to_a1
+import json
 
 # === ENV SETUP ===
 REMOTE_MONGO_URI = os.getenv("REMOTE_MONGO_URI")
@@ -29,7 +30,8 @@ if not cred_doc or "content" not in cred_doc:
 # Write credentials.json content to a temporary file
 CREDENTIALS_FILE = "/tmp/credentials.json"
 with open(CREDENTIALS_FILE, "w") as f:
-    f.write(cred_doc["content"])
+    # Convert dict to JSON string before writing it to the file
+    json.dump(cred_doc["content"], f)
 
 # --- Authorize Google Sheets ---
 SCOPES = [
