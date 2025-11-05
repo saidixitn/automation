@@ -21,6 +21,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run Clicks Report
+      - name: Change directory to 'automation' and run the script
         run: |
-          python automation/banana_satffattract_clicks.py $(date -u +"%Y-%m-%d")
+          cd automation
+          python banana_satffattract_clicks.py $(date -u +"%Y-%m-%d")
