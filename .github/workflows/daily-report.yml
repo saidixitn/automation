@@ -2,7 +2,7 @@ name: Daily Clicks Report Automation
 
 on:
   schedule:
-    - cron: "30 11 * * *"   # Runs daily at 11:30 AM UTC = 5:00 PM IST
+    - cron: "25 4 * * *"   # Runs daily at 9:55 AM IST (4:25 AM UTC)
   workflow_dispatch:
 
 jobs:
@@ -26,9 +26,12 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt --no-cache-dir
 
-      - name: Run the script
+      - name: Run the script for previous date
         run: |
-          python3 banana.py $(date -u +"%Y-%m-%d")
+          YESTERDAY=$(date -u -d "yesterday" +"%Y-%m-%d")
+          echo "Running report for $YESTERDAY"
+          python3 banana.py "$YESTERDAY"
 
       - name: Logging execution time
-        run: echo "Execution completed for $(date -u +"%Y-%m-%d")"
+        run: |
+          echo "Execution completed for $(date -u)"
