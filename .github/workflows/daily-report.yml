@@ -2,25 +2,33 @@ name: Daily Clicks Report Automation
 
 on:
   schedule:
-    - cron: "30 4 * * *"   # runs daily at 4:30 AM UTC = 10:00 AM IST
+    - cron: "30 11 * * *"   # Runs daily at 11:30 AM UTC = 5:00 PM IST
   workflow_dispatch:
 
 jobs:
   run-report:
+    name: Run Daily Clicks Report Script
     runs-on: ubuntu-latest
     env:
       REMOTE_MONGO_URI: ${{ secrets.REMOTE_MONGO_URI }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Change directory to 'automation' and run the script
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt --no-cache-dir
+
+      - name: Run the script
         run: |
-          python banana.py $(date -u +"%Y-%m-%d")
+          python3 banana.py $(date -u +"%Y-%m-%d")
+
+      - name: Logging execution time
+        run: echo "Execution completed for $(date -u +"%Y-%m-%d")"
