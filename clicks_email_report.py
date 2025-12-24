@@ -3,8 +3,6 @@ import os
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from io import StringIO
-import json
 
 import gspread
 import smtplib
@@ -28,11 +26,16 @@ SMTP_PASS = os.getenv("SMTP_PASS")
 if not SMTP_PASS:
     raise Exception("SMTP_PASS not found in environment variables")
 
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
 # ==========================================================
 # DATE ARG
 # ==========================================================
 if len(sys.argv) < 2:
-    print("Usage: python stats_email.py YYYY-MM-DD")
+    print("Usage: python clicks_email_report.py YYYY-MM-DD")
     sys.exit(1)
 
 REPORT_DATE = sys.argv[1]
@@ -68,31 +71,23 @@ def is_table_domain(domain_type: str) -> bool:
 client = MongoClient(REMOTE_MONGO_URI)
 
 domains_col = client["mongo_creds"]["creds"]
-google_creds_col = client["mongo_creds"]["google_creds"]
 stats_col = client["daily_domain_stats"]["stats"]
 email_col = client["daily_domain_stats"]["email"]
 
 # ==========================================================
-# GOOGLE SHEETS (CREDS FROM MONGO – CORRECT DB/COLLECTION)
+# GOOGLE CREDS FROM MONGO (CORRECT)
+# DB: google_creds
+# Collection: creds
+# Field: content
 # ==========================================================
 google_creds_col = client["google_creds"]["creds"]
 
-google_creds_wrapper = google_creds_col.find_one(
-    {}, {"content": 1}
-)
-
-if not google_creds_wrapper or "content" not in google_creds_wrapper:
-    raise Exception("Google credentials content not found in MongoDB")
-
-google_creds = google_creds_wrapper["content"]
-
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
+google_creds_doc = google_creds_col.find_one({}, {"content": 1})
+if not google_creds_doc or "content" not in google_creds_doc:
+    raise Exception("Google service account not found in MongoDB")
 
 creds = Credentials.from_service_account_info(
-    google_creds,
+    google_creds_doc["content"],
     scopes=SCOPES
 )
 
@@ -101,7 +96,7 @@ sheet = gc.open("Domain Stats")
 domains_ws = sheet.worksheet("Domains")
 domains_rows = domains_ws.get_all_records()
 
-
+# Normalize sheet rows
 for r in domains_rows:
     r["Domain"] = (r.get("Domain") or "").strip()
     r["Database"] = (r.get("Database") or "").strip()
@@ -118,7 +113,7 @@ def connect_mongo(domain_record, db_name):
     return c[db_name]
 
 # ==========================================================
-# FETCH VIEWS
+# FETCH VIEWS (UNCHANGED LOGIC)
 # ==========================================================
 def fetch_views(domain, db, employer_id, domain_type):
     col = db["userAnalytics"]
@@ -177,20 +172,20 @@ def fetch_views(domain, db, employer_id, domain_type):
 # DOMAIN WORKER
 # ==========================================================
 def process_domain(row):
-    domain = row["Domain"]
-    db_name = row["Database"]
-    domain_type = row["Domain Type"]
-    employer_id = row["EmployerId"]
-
-    if not domain or not db_name:
+    if not row["Domain"] or not row["Database"]:
         return []
 
-    record = domains_col.find_one({"domain": db_name})
+    record = domains_col.find_one({"domain": row["Database"]})
     if not record:
         return []
 
-    db = connect_mongo(record, db_name)
-    return fetch_views(domain, db, employer_id, domain_type)
+    db = connect_mongo(record, row["Database"])
+    return fetch_views(
+        row["Domain"],
+        db,
+        row["EmployerId"],
+        row["Domain Type"]
+    )
 
 # ==========================================================
 # RUN STATS
@@ -210,7 +205,7 @@ if all_rows:
     stats_col.insert_many(all_rows)
 
 # ==========================================================
-# AGGREGATE FOR EMAIL
+# AGGREGATE FOR EMAIL (IDENTICAL TO LOCAL)
 # ==========================================================
 domains = defaultdict(lambda: {
     "type": "",
@@ -224,9 +219,7 @@ for r in domains_rows:
         domains[r["Domain"]]["type"] = r["Domain Type"]
 
 for r in all_rows:
-    dom = r["Domain"]
-    d = domains[dom]
-
+    d = domains[r["Domain"]]
     clicks = to_int(r["ViewsCount"])
     ips = to_int(r["UniqueIpCount"])
 
@@ -238,7 +231,7 @@ for r in all_rows:
     d["rows"][key]["ips"] += ips
 
 # ==========================================================
-# EMAIL HTML BUILDER (UNCHANGED LOGIC)
+# EMAIL HTML BUILDER (UNCHANGED)
 # ==========================================================
 def build_html(name, email):
     total_domains = len(domains)
