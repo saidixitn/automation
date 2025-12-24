@@ -73,18 +73,18 @@ stats_col = client["daily_domain_stats"]["stats"]
 email_col = client["daily_domain_stats"]["email"]
 
 # ==========================================================
-# GOOGLE SHEETS (CREDS FROM MONGO - content based)
+# GOOGLE SHEETS (CREDS FROM MONGO – CORRECT DB/COLLECTION)
 # ==========================================================
+google_creds_col = client["google_creds"]["creds"]
+
 google_creds_wrapper = google_creds_col.find_one(
-    {"name": "google_credentials"}
+    {}, {"content": 1}
 )
 
-if not google_creds_wrapper:
-    raise Exception("Google credentials document not found in MongoDB")
+if not google_creds_wrapper or "content" not in google_creds_wrapper:
+    raise Exception("Google credentials content not found in MongoDB")
 
-google_creds = google_creds_wrapper.get("content")
-if not google_creds:
-    raise Exception("Google credentials content is empty in MongoDB")
+google_creds = google_creds_wrapper["content"]
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -100,6 +100,7 @@ gc = gspread.authorize(creds)
 sheet = gc.open("Domain Stats")
 domains_ws = sheet.worksheet("Domains")
 domains_rows = domains_ws.get_all_records()
+
 
 for r in domains_rows:
     r["Domain"] = (r.get("Domain") or "").strip()
