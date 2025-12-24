@@ -1,0 +1,38 @@
+name: Daily Clicks Email Report
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # Runs daily at 9:30 AM IST (4:00 AM UTC)
+  workflow_dispatch:
+
+jobs:
+  run-email-report:
+    name: Run Daily Clicks Email Report Script
+    runs-on: ubuntu-latest
+    env:
+      REMOTE_MONGO_URI: ${{ secrets.REMOTE_MONGO_URI }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt --no-cache-dir
+
+      - name: Run the script for yesterday's date (UTC)
+        run: |
+          YESTERDAY=$(date -u -d "yesterday" +"%Y-%m-%d")
+          echo "Running email report for $YESTERDAY"
+          python3 clicks_email_report.py "$YESTERDAY"
+
+      - name: Logging execution time
+        run: |
+          echo "Execution completed for $(date -u)"
